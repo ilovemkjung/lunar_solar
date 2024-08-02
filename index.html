@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <link rel="shortcut icon" type="image/svg+xml" href="favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>음력/양력 변환기</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        input, select, button {
+            margin: 5px;
+            padding: 5px;
+        }
+        #result {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <form id="form">
+    <div class="container">
+        <h2>음력/양력 변환기</h2>
+        <input type="number" id="year" placeholder="년도" min="1900" max="2100">
+        <input type="number" id="month" placeholder="월" min="1" max="12">
+        <input type="number" id="day" placeholder="일" min="1" max="31">
+        <select id="calendarType">
+            <option value="solar">양력 → 음력</option>
+            <option value="lunar">음력 → 양력</option>
+        </select>
+        <button type="submit">변환</button>
+        <div id="result"></div>
+    </div>
+    </form>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"></script> 
+    <script src="https://unpkg.com/moment-lunar@0.0.4/moment-lunar.min.js"></script> 
+    
+
+    <script type="module">
+        import {
+          getGenerativeModel,
+          scrollToDocumentBottom,
+          updateUI,
+        } from "./utils/shared.js";
+
+        const year = document.querySelector("#year");
+        const month = document.querySelector('#month');
+        const day = document.querySelector('#day');
+        const calendarType = document.querySelector('#calendarType');
+        const resultDiv = document.querySelector('#result');
+
+        const inputString = "{ type: "+calendarType.value+", sourceDate: "+year.value+"-"+month.value+"-"+day.value+" }";
+  
+
+        const historyElement = document.querySelector("#result");
+        let chat;
+  
+        document
+          .querySelector("#form")
+          .addEventListener("submit", async (event) => {
+            event.preventDefault();
+  
+            if (!chat) {
+              const model = await getGenerativeModel({ 
+                                    model: "gemini-1.5-flash",
+                                    systemInstruction: `
+                                        ## 지시문 ##
+                                        너는 음력과 양력을 잘 계산 하는 AI 야
+                                        음력과 양력 구분과 날짜를 주면 너는 계산해서 답을 해주면 돼
+                                        아래의 예시를 참고해서 답을 해주면 좋겠어
+                                        ## 예시 ##
+                                         질문: { type: lunar, sourceDate: 1999-9-9 }
+                                         답변: 양력으로 1999년 10월 17일입니다.
+
+                                         질문: { calendarType: solar, sourceDate: 1999-10-17 }
+                                         답변: 음력으로 1999년 9월 9일입니다.
+                                    ` 
+                                });
+              chat = model.startChat({
+                generationConfig: {
+                  maxOutputTokens: 100,
+                },
+              });
+            }
+  
+            const userMessage = "{ type: "+calendarType.value+", sourceDate: "+year.value+"-"+month.value+"-"+day.value+" }";;
+  
+            // Create UI for the new user / assistant messages pair
+            historyElement.innerHTML = `<div class="history-item model-role">
+              <blockquote></blockquote>
+            </div>`;
+  
+            scrollToDocumentBottom();
+            const resultEls = document.querySelectorAll(
+              ".model-role > blockquote",
+            );
+            await updateUI(
+              resultEls[resultEls.length - 1],
+              () => chat.sendMessageStream(userMessage),
+              true,
+            );
+          });
+      </script>
+</body>
+</html>
